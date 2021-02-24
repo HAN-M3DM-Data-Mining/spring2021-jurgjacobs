@@ -1,0 +1,103 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Data Understanding
+```{r}
+library(readr)
+
+url <- "https://raw.githubusercontent.com/businessdatasolutions/courses/main/data%20mining/gitbook/datasets/breastcancer.csv"
+rawDF <- read_csv(url)
+head(rawDF, 10)
+
+str(rawDF)
+```
+## Data preperation
+
+```{r}
+cleanDF <- rawDF[-1]
+head(cleanDF)
+
+## Delete more variables (columns)
+cleanDFv2 <- rawDF[-c(1:3)]
+```
+
+```{r}
+## Aantal observations tellen van een variabele.
+cntDiag <- table(cleanDF$diagnosis)
+propDiag <- round(prop.table(cntDiag) * 100 , digits = 1)
+
+cntDiag
+propDiag
+```
+
+```{r}
+## Changing the variable from 'character' type to 'factor' type
+library(tidyverse)
+cleanDF$diagnosis <- factor(cleanDF$diagnosis, levels = c("B", "M"), labels = c("Benign", "Malignant")) %>% relevel("Malignant")
+head(cleanDF, 10)
+
+## Samenvatting geven van de opgegeven variabelen. 
+summary(cleanDF[c("radius_mean", "area_mean", "smoothness_mean")])
+```
+```{r}
+## This is a test set. Not based on the data file. 
+
+normalize <- function(x) { # Function takes in a vector
+  return ((x - min(x)) / (max(x) - min(x))) # distance of item value - minimum vector value divided by the range of all vector values
+}
+
+testSet1 <- c(1:5)
+testSet2 <- c(1:5) * 10
+
+cat("testSet1:", testSet1, "\n")
+
+cat("testSet2:", testSet2, "\n")
+
+cat("Normalized testSet1:", normalize(testSet1), "\n")
+
+cat("Normalized testSet2:", normalize(testSet2))
+```
+
+```{r}
+##
+
+nCols <- dim(cleanDF)[2]
+cleanDF_n <- sapply(2:nCols,
+                    function(x) {
+  normalize(cleanDF[,x])
+}) %>% as.data.frame()
+
+summary(cleanDF_n[c("radius_mean", "area_mean", "smoothness_mean")])
+```
+
+```{r}
+## Split the dataset into a training set and a test set.
+
+trainDF_feat <- cleanDF_n[1:469,  ]
+testDF_feat <- cleanDF_n[470:569,  ]
+
+##
+
+trainDF_labels <- cleanDF[1:469,  1]
+testDF_labels <- cleanDF[470:569,  1]
+```
+
+## Modeling and Evaluation
+```{r}
+install.packages("class")
+library(class)
+
+cleanDF_test_pred <- knn(train = as.matrix(trainDF_feat), test = as.matrix(testDF_feat), cl = as.matrix(trainDF_labels), k = 21)
+head(cleanDF_test_pred)
+```
+
+```{r}
+##
+
+library(caret)
+
+confusionMatrix(cleanDF_test_pred, testDF_labels[[1]], positive = NULL, dnn = c("Prediction", "True"))
+```
+
