@@ -1,0 +1,136 @@
+---
+title: "Assigment - kNN DIY"
+author:
+  - Jurg Jacobs (665156) - Author
+  - Rob van der Wielen (studentnummer) - Reviewer
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+   html_notebook:
+    toc: true
+    toc_depth: 2
+---
+
+
+```{r}
+library(tidyverse)
+library(googlesheets4)
+library(class)
+library(caret)
+```
+
+---
+
+## Business Understanding
+The dataset is about laboratory values of blood donors and Hepatitis C patients. In addition, there are demographic values, such as age (in years) and gender (f,m). The dataset has in total 14 variables and 615 observations. 
+
+The most important variable in this dataset is the diagnosis, which tells how many people are in the category "Blood Donor", "Suspect Blood Donor" or "Hepatitis C". Hepatitis C includes the categories 1=Hepatitis, 2=Fibrosis and 3=Cirrhosis. The most common liver disease is Fibrosis and is caused by Hepatitis C, which could lead to infections. Eventually, scar tissue forms, damaging the liver and impairing its function. The final stage of liver fibrosis is cirrhosis. 
+
+To fight the Hepatitis C, people can donate their blood. This blood must not contain Hepatitis C, otherwise it can not be donated. 
+
+## Data Understanding
+```{r}
+
+url <- "https://raw.githubusercontent.com/HAN-M3DM-Data-Mining/assignments/master/datasets/KNN-hcvdat0.csv"
+
+rawDF <- read_csv(url)
+head(rawDF, 10)
+
+str(rawDF)
+```
+
+
+## Data Preparation
+```{r}
+cleanDF <- rawDF[-1] %>% na.omit
+head(cleanDF, 10)
+
+## Shuffle the rows in the dataset
+set.seed(42)
+rows <- sample(nrow(cleanDF))
+cleanDF <- cleanDF[rows, ]
+
+```
+
+```{r}
+cntDiag <- table(cleanDF$Category)
+propDiag <- round(prop.table(cntDiag) * 10 , digits = 0)
+
+cntDiag
+propDiag
+```
+
+```{r}
+## Changing the variable from 'character' type to 'factor' type
+library(tidyverse)
+
+cleanDF$Category <- cleanDF$Category %>% factor
+
+cleanDF$Category <- fct_collapse(cleanDF$Category, Donor = c("0=Blood Donor"), SuspectDonor = c("0s=suspect Blood Donor"), HepatitisC = c("1=Hepatitis", "2=Fibrosis", "3=Cirrhosis"))
+levels(cleanDF$Category)
+head(cleanDF, 10)
+
+summary(cleanDF[c("ALB", "ALP", "ALT", "AST")])
+```
+
+```{r}
+## This is a test set. Not based on the data file. 
+
+normalize <- function(x) { # Function takes in a vector
+  return ((x - min(x)) / (max(x) - min(x))) # distance of item value - minimum vector value divided by the range of all vector values
+}
+
+testSet1 <- c(1:5)
+testSet2 <- c(1:5) * 1
+
+cat("testSet1:", testSet1, "\n")
+
+cat("testSet2:", testSet2, "\n")
+
+cat("Normalized testSet1:", normalize(testSet1), "\n")
+
+cat("Normalized testSet2:", normalize(testSet2))
+```
+
+```{r}
+nCols <- dim(cleanDF)[4]
+cleanDF_n <- sapply(4:nCols,
+                    function(x) {
+  normalize(cleanDF[,x])
+}) %>% as.data.frame()
+
+summary(cleanDF_n[c("ALB", "ALP", "ALT", "AST")])
+```
+
+```{r}
+## Split the dataset into a training set and a test set.
+
+trainDF_feat <- cleanDF_n[1:489,  ]
+testDF_feat <- cleanDF_n[490:589,  ]
+
+trainDF_labels <- cleanDF[1:489,  1]
+testDF_labels <- cleanDF[470:569,  1]
+```
+
+## Modeling
+```{r}
+library(class)
+
+cleanDF_test_pred <- knn(train = as.matrix(trainDF_feat), test = as.matrix(testDF_feat), cl = as.matrix(trainDF_labels), k = 11)
+head(cleanDF_test_pred)
+```
+
+```{r}
+library(caret)
+
+confusionMatrix(cleanDF_test_pred, testDF_labels[[1]], positive = NULL, dnn = c("Prediction", "True"))
+```
+
+
+## Evaluation and Deployment
+The accuracy of the model is 97%, which is a good result for the model. 
+
+In this case, the model is important because 3% of the people who were predicted to be donors were actually not. 1% are suspect donors and 2% have hepatitis C. This ensures that people do not donate blood without actually being able to. 
+
+97% of the cases were predicted correctly, in which 94% were actually a donor and 3% have Hepatitis C. 
+
+## reviewer adds suggestions for improving the model
