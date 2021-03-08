@@ -1,8 +1,8 @@
 ---
 title: "Assigment - kNN DIY"
 author:
-  - name author here - Author
-  - name reviewer here - Reviewer
+  - Jurg Jacobs (665156) - Author
+  - Rob van der Wielen (studentnummer) - Reviewer
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
    html_notebook:
@@ -20,22 +20,140 @@ library(caret)
 
 ---
 
-Choose a suitable dataset from [this](https://github.com/HAN-M3DM-Data-Mining/assignments/tree/master/datasets) folder and train  your own kNN model. Follow all the steps from the CRISP-DM model.
-
-
 ## Business Understanding
-text and code here
+The dataset is about laboratory values of blood donors and Hepatitis C patients. In addition, there are demographic values, such as age (in years) and gender (f,m). The dataset has in total 14 variables and 615 observations. 
+
+The most important variable in this dataset is the diagnosis, which tells how many people are in the category "Blood Donor" or "Hepatitis C". Blood Donor includes the categories 0= Blood Donor and 0s=Suspect Blood Donor. Hepatitis C includes the categories 1=Hepatitis, 2=Fibrosis and 3=Cirrhosis. The most common liver disease is Fibrosis and is caused by Hepatitis C, which could lead to infections. Eventually, scar tissue forms, damaging the liver and impairing its function. The final stage of liver fibrosis is cirrhosis. 
+
+To fight the Hepatitis C, people can donate their blood. This blood must not contain Hepatitis C, otherwise it can not be donated. 
+
+The goal of this analysis is to predict whether a person has Hepatitis C and if it is possible to take and donate blood. 
 
 ## Data Understanding
-text and code here
+```{r}
+library(readr)
+
+url <- "https://raw.githubusercontent.com/HAN-M3DM-Data-Mining/assignments/master/datasets/KNN-hcvdat0.csv"
+
+rawDF <- read_csv(url)
+head(rawDF, 10)
+
+str(rawDF)
+```
+
 
 ## Data Preparation
-text and code here
+```{r}
+cleanDF <- rawDF[-1] %>% na.omit
+head(cleanDF, 10)
+
+set.seed(42)
+rows <- sample(nrow(cleanDF))
+cleanDF <- cleanDF[rows, ]
+
+```
+
+```{r}
+cntDiag <- table(cleanDF$Category)
+propDiag <- round(prop.table(cntDiag) * 100 , digits = 1)
+
+cntDiag
+propDiag
+```
+
+<body>
+ <h1 style="color:#FF0000";> After review of Rob: Changed the categories to only Donor and Hepatitis C. </h1>
+ </body>
+
+```{r}
+## Changing the variable from 'character' type to 'factor' type
+library(tidyverse)
+
+cleanDF$Category <- cleanDF$Category %>% factor
+
+cleanDF$Category <- fct_collapse(cleanDF$Category, Donor = c("0=Blood Donor", "0s=suspect Blood Donor"), HepatitisC = c("1=Hepatitis", "2=Fibrosis", "3=Cirrhosis"))
+levels(cleanDF$Category)
+head(cleanDF, 10)
+
+summary(cleanDF[c("ALB", "ALP", "ALT", "AST")])
+```
+
+```{r}
+## This is a test set. Not based on the data file. 
+
+normalize <- function(x) { # Function takes in a vector
+  return ((x - min(x)) / (max(x) - min(x))) # distance of item value - minimum vector value divided by the range of all vector values
+}
+
+testSet1 <- c(1:5)
+testSet2 <- c(1:5) * 10
+
+cat("testSet1:", testSet1, "\n")
+
+cat("testSet2:", testSet2, "\n")
+
+cat("Normalized testSet1:", normalize(testSet1), "\n")
+
+cat("Normalized testSet2:", normalize(testSet2))
+```
+
+```{r}
+nCols <- dim(cleanDF)[2]
+cleanDF_n <- sapply(4:nCols,
+                    function(x) {
+  normalize(cleanDF[,x])
+}) %>% as.data.frame()
+
+summary(cleanDF_n[c("ALB", "ALP", "ALT", "AST")])
+```
+
+```{r}
+## Split the dataset into a training set and a test set.
+
+trainDF_feat <- cleanDF_n[1:489,  ]
+testDF_feat <- cleanDF_n[490:589,  ]
+
+trainDF_labels <- cleanDF[1:489,  1]
+testDF_labels <- cleanDF[490:589,  1]
+```
 
 ## Modeling
-text and code here
+```{r}
+library(class)
+
+cleanDF_test_pred <- knn(train = as.matrix(trainDF_feat), test = as.matrix(testDF_feat), cl = as.matrix(trainDF_labels), k = 11)
+head(cleanDF_test_pred)
+```
+
+```{r}
+library(caret)
+
+confusionMatrix(cleanDF_test_pred, testDF_labels[[1]], positive = NULL, dnn = c("Prediction", "True"))
+```
+
 
 ## Evaluation and Deployment
-text and code here
+The accuracy of the model is 97%, which is a good result for the model. 
 
-reviewer adds suggestions for improving the model
+In this case, the model is important because 3% of the people who were predicted to be donors were actually not. 1% are suspect donors and 2% have hepatitis C. So 1% of the persons which was predicted that they could be a blood donor, are actually suspect donors. And 2% are actually having the Hepatitis C disease. This ensures that people do not donate blood without actually being able to. 
+
+For the Hepatitis C there is a 0% chance that a person which was predicted to have Hepatitis C, actually could be a Blood Donor or a Suspect Donor.
+
+97% of the cases were predicted correctly, in which 94% were actually a donor and 3% have Hepatitis C. 
+
+In this case, it is better to have a False Negative rather than having a False positive, because then the blood can be used. Otherwise the person will have had blood taken for nothing. 
+
+<body>
+ <h1 style="color:#FF0000";> Evaluation and Deployment after improving and feedback of Rob. </h1>
+ </body>
+
+### Accuracy and Deployment of the model
+The accuracy of the model is 98%, which is a great result for the model. With this model it is possible to decide whether a person is suffering from Hepatitis C patient by looking only at the blood values of the blood donors. Because of that, it is possible to see if a person could take blood or not.  
+
+### Results
+In this case, the model is important because 2% of the people who were predicted to be donors were actually not. These people are actually suffering from Hepatitis C and can not take blood. 
+
+For the Hepatitis C there is a 0% chance that a person which was predicted to have Hepatitis C, actually could be a Blood Donor.
+
+### False Negative rather than False Positive
+In this case, it is better to have a False Negative rather than having a False positive, because then the person does not receive unnecessary bad news and has to worry about the disease. With a False Negative it is possible to take and donate blood, to fight the Hepatitis C disease. 
