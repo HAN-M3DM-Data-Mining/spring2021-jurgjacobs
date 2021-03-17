@@ -1,5 +1,5 @@
 ---
-title: "Assigment - kNN DIY"
+title: "Assigment - kNN DIY with mistakes"
 author:
   - Jurg Jacobs (665156) - Author
   - Rob van der Wielen (studentnummer) - Reviewer
