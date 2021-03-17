@@ -1,0 +1,177 @@
+---
+title: "Assigment - Naive Bayes DIY"
+author:
+- name author here - Rob van der Wielen (665160)
+- name reviewer here - Jurg Jacobs (665156)
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+  html_document:
+    toc: yes
+    toc_depth: '2'
+    df_print: paged
+---
+
+```{r message=TRUE, warning=TRUE, include=FALSE}
+library(tidyverse)
+library(tm)
+library(tidyverse)
+library(readr)
+library(caret)
+library(wordcloud)
+library(e1071)
+```
+
+## Business Understanding
+This data set is about finding sources of accurate and unfabricated news and finding ''fake news''. It is hard to find the difference. In this data set we are using Naive Bayes Classifier to classify what is real and what is fake news. 
+
+I will count the numbers of times a word appears in the headline of the articles in the rawDF dataset, given that the news is fake. Than change that to a probability. So then calculate the probability that the headline is fake, as compared tot the headline being real. 
+
+## Data Understanding
+```{r echo=FALSE, warning=FALSE}
+url <- "https://raw.githubusercontent.com/HAN-M3DM-Data-Mining/assignments/master/datasets/NB-fakenews.csv"
+rawDF <- read_csv(url)
+
+head(rawDF)
+```
+
+<body>
+ <h1 style="color:#FF0000";> Changed the column numbers that we want to get rid of. -2 has to be -1. </h1>
+ </body>
+
+```{r}
+# First we want to get rid of the author, ID's and the text. We want to only look at the titles and look if there 0: reliable or 1: unreliable 
+cleanDF <- rawDF[c(-1,-3, -4)] %>% na.omit
+head(cleanDF)
+```
+
+```{r}
+# It was a numeric value with only 0s and 1s. I had to change it into a factor value with the values, Reliable and unreliable. And I switched the columns too. 
+cleanDF$label <- cleanDF$label %>% factor
+cleanDF$label <- factor(cleanDF$label, levels = c("0", "1"), labels = c("Reliable", "Unreliable")) %>% relevel("Reliable")
+
+levels(cleanDF$label)
+class(cleanDF$label)
+
+col_order <- c("label", "title")
+
+cleanDF <- cleanDF[, col_order]
+cleanDF
+```
+
+Build a wordcloud
+
+<body>
+ <h1 style="color:#FF0000";> If I ran the chunk in the document I only got the words "Unreliable" and "Reliable. So I changed the code for the wordcloud to get the output of the titles instead of the labels. </h1>
+ </body>
+
+```{r}
+# So I created a wordcloud for the two variables. It is kinda funny because the word that comes back the most in the unreliable articles is Trump only after THE. 
+Unreliable <- cleanDF %>% filter(label == "Unreliable")
+Reliable <- cleanDF %>% filter(label == "Reliable")
+
+wordcloud(Unreliable$title, max.words = 20, scale = c(4, 0.8), colors= c("indianred1","indianred2","indianred3","indianred"))
+wordcloud(Reliable$title, max.words = 20, scale = c(4, 0.8), colors= c("lightsteelblue1","lightsteelblue2","lightsteelblue3","lightsteelblue"))
+```
+
+## Data Preparation
+
+convert text to corpus.
+```{r}
+rawCorpus <- Corpus(VectorSource(cleanDF$title))
+inspect(rawCorpus[1:3])
+```
+
+Make lowercase and remove numbers.
+
+```{r}
+cleanCorpus <- rawCorpus %>% tm_map(tolower) %>% tm_map(removeNumbers)
+```
+
+Remove stopwords, punctuation and whitespaces.
+
+```{r}
+cleanCorpus <- cleanCorpus %>% tm_map(tolower) %>% tm_map(removeWords, stopwords()) %>% tm_map(removePunctuation)
+
+cleanCorpus <- cleanCorpus %>% tm_map(stripWhitespace)
+
+tibble(Raw = rawCorpus$content[1:3], Clean = cleanCorpus$content[1:3])
+
+```
+
+
+Build DTM.
+
+```{r}
+cleanDTM <- cleanCorpus %>% DocumentTermMatrix
+inspect(cleanDTM)
+```
+
+Split dataset into training and testing.
+
+<body>
+ <h1 style="color:#FF0000";> Times = 2 is false. Needs to be Times = 1. </h1>
+ </body>
+
+```{r}
+set.seed(1234)
+trainIndex <- createDataPartition(cleanDF$label, p = .75, 
+                                  list = FALSE, 
+                                  times = 1)
+head(trainIndex)
+
+trainDF <- cleanDF[trainIndex, ]
+testDF <- cleanDF[-trainIndex, ]
+
+trainCorpus <- cleanCorpus[trainIndex]
+testCorpus <- cleanCorpus[-trainIndex]
+
+trainDTM <- cleanDTM[trainIndex, ]
+testDTM <- cleanDTM[-trainIndex, ]
+```
+
+Select frequent words.
+
+```{r}
+freqWords <- trainDTM %>% findFreqTerms(5)
+trainDTM <-  DocumentTermMatrix(trainCorpus, list(dictionary = freqWords))
+testDTM <-  DocumentTermMatrix(testCorpus, list(dictionary = freqWords))
+```
+
+```{r}
+convert_counts <- function(x) {
+  x <- ifelse(x > 0, 1, 0) %>% factor(levels = c(0,1), labels = c("No", "Yes"))
+}
+
+nColsDTM <- dim(trainDTM)[2]
+trainDTM <- apply(trainDTM, MARGIN = 2, convert_counts)
+testDTM <- apply(testDTM, MARGIN = 2, convert_counts)
+
+head(trainDTM[,1:10])
+```
+
+## Modeling
+```{r}
+nbayesModel <-  naiveBayes(trainDTM, trainDF$label, laplace = 1)
+```
+
+Test and evaluate.
+
+```{r}
+predVec <- predict(nbayesModel, testDTM)
+confusionMatrix(predVec, testDF$label, positive = "Unreliable", dnn = c("Prediction", "True"))
+```
+
+
+## Evaluation and Deployment
+The model has an accuracy of 92,7%, which is a good result for the model.
+
+There are still quite a lot of cases where the model said that it was unreliable,The model than classifies the article as unreliable while it is reliable. This happened about 10.8% of the time. The other way around, so when it actually was unreliable but the model predicted it was reliable, happened around 3.4% of the time.
+
+<body>
+ <h1 style="color:#FF0000";> Extra Evaluation and Deployment by Jurg. </h1>
+ </body>
+ 
+In this case, it is better to have False Negatives, because information which was predicted to be unreliable will not be shown to users of, for example, Facebook. False Positives would be shown to users, based on the prediction of the model, what is in fact unreliable information. This false information could influence the opinion of people and then could lead to bigger misunderstandings.  
